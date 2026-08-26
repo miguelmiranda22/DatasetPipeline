@@ -1,0 +1,11 @@
+numpy>=1.26
+pandas>=2.2
+scipy>=1.13
+scikit-learn>=1.5
+rdkit>=2024.03
+requests>=2.32
+tqdm>=4.66
+PyYAML>=6.0
+
+scikit-bio>=0.6
+biopython>=1.83

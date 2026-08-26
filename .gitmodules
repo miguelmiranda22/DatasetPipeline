@@ -1,0 +1,3 @@
+[submodule "PAAS-Toolkit"]
+	path = PAAS-Toolkit
+	url = https://github.com/aofalcao/PAAS-Toolkit.git
