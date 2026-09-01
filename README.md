@@ -58,7 +58,7 @@ Calls `csanno.py -search N|A -rules csanno_{strict,default}_rules.yaml -report A
 
 **6.4** `ProcessPAASidxs.py` - one index set per protein -> `AllProtPaas.pickle`, renamed `all_prots_fps.pickle`
 
-**6.5** `PAASTrimmer.py <n>` - drops the n lowest-information (most frequent) labels -> `all_prots_fps_selected.pickle`
+**6.5** `PAASTrimmer.py 5000` - drops the 5000 lowest-information (most frequent) labels, leaving 144x144-5000 = 15736 -> `all_prots_fps_selected.pickle`
 
 ## 7. Merge
 
@@ -72,3 +72,35 @@ Morgan encoding of the SMILES (radius 4, 2048 bits), PAAS lookup on the target, 
 | AllProtsSelected | `..._strict_..._all_prots_selected_uniform.pkl` | `..._nonstrict_..._all_prots_selected_uniform.pkl` |
 
 Blind (90/10 by protein) and prospective (Year <= 2022 / >= 2023) splits are made downstream, in the training scripts.
+
+## Running the whole thing on the cluster
+
+`cluster/` submits every stage as its own SLURM job, chained with `--dependency=afterok`.
+
+```
+BASE_DIR=$HOME/paas_rerun PIPE_DIR=$HOME/DatasetPipeline \
+CHEMBL_DB=$HOME/chembl_37/chembl_37_sqlite/chembl_37.db \
+  cluster/run_pipeline.sh
+```
+
+`cluster/preflight.sh` runs first and refuses to submit if a script, the database or a dependency is
+missing. Everything runs in a fresh `$BASE_DIR/run`, so the existing datasets are never touched.
+Stage 09 diffs the result against them.
+
+All four datasets are built (merge tasks 0-3): AllProts and AllProtsSelected, strict and non-strict.
+The trimming size is 5000, set by `PRUNING_SIZE` in `cluster/config.sh`.
+
+| stage | resources |
+|---|---|
+| 01 sql | 96G, 8 cpu, 12h |
+| 02 mining (array 0-19) | 32G, 16 cpu, 24h |
+| 03 protein ids | 24G, 4 cpu, 4h |
+| 04 structures | 8G, 2 cpu, 12h |
+| 05 paas process | 125G, exclusive node, 24h |
+| 06 paas centroids | 125G, 32 cpu, 24h |
+| 07 paas idxs | 64G, 8 cpu, 8h |
+| 08 merge (array 0-3) | 100G, 16 cpu, 12h |
+| 09 verify | 100G, 4 cpu, 4h |
+
+Stage 05 takes a whole node because `PAAS_Processor.py` sizes its pool from `mp.cpu_count()`, which
+reports the node's cores rather than the SLURM allocation.
